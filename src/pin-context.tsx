@@ -54,7 +54,8 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
     [now, setNow] = useState(Date.now());
   const active = useRef(false),
     generation = useRef(0),
-    operation = useRef(false);
+    operation = useRef(false),
+    pinInput = useRef<HTMLInputElement>(null);
   function lock() {
     active.current = false;
     generation.current++;
@@ -119,8 +120,7 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
     }
     persistAttempts({ ...emptyAttempts });
   }
-  async function submit(e: Event) {
-    e.preventDefault();
+  async function submit(enteredPin = pin) {
     if (operation.current) return;
     operation.current = true;
     setBusy(true);
@@ -128,7 +128,7 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
     const currentGeneration = generation.current;
     try {
       if (profile) {
-        await authenticate(pin);
+        await authenticate(enteredPin);
       } else {
         if (pin !== confirm) throw Error('Hai lần nhập PIN chưa giống nhau.');
         const record = await makePin(pin, name);
@@ -149,6 +149,11 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
     } finally {
       setBusy(false);
       operation.current = false;
+      if (profile && currentGeneration === generation.current && !active.current)
+        requestAnimationFrame(() => {
+          if (!document.hidden && currentGeneration === generation.current)
+            pinInput.current?.focus();
+        });
     }
   }
   async function change(oldPin: string, newPin: string) {
@@ -201,7 +206,12 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
                   : 'Chỉ cần thiết lập một lần, không cần email.'}
             </p>
             {!invalid && (
-              <form onSubmit={submit}>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!profile || pin.length === 4) void submit();
+                }}
+              >
                 {!profile && (
                   <label>
                     Tên hiển thị
@@ -220,6 +230,7 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
                   <input
                     aria-label={profile ? 'PIN 4 số' : 'Chọn PIN 4 số'}
                     className="pin-input"
+                    ref={pinInput}
                     type="password"
                     inputMode="numeric"
                     pattern="[0-9]{4}"
@@ -229,7 +240,13 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
                     required
                     value={pin}
                     disabled={busy || remaining > 0}
-                    onInput={(e) => setPin(e.currentTarget.value.replace(/\D/g, ''))}
+                    onInput={(e) => {
+                      const value = e.currentTarget.value.replace(/\D/g, '').slice(0, 4);
+                      setPin(value);
+                      setError('');
+                      if (profile && value.length === 4 && !busy && remaining === 0)
+                        void submit(value);
+                    }}
                   />
                 </label>
                 {!profile && (
@@ -260,13 +277,19 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
                     Thử lại sau {remaining} giây.
                   </p>
                 )}
-                <button
-                  className="button primary full"
-                  type="submit"
-                  disabled={busy || remaining > 0}
-                >
-                  {busy ? 'Đang kiểm tra…' : profile ? 'Mở app' : 'Lưu PIN & vào nhà'}
-                </button>
+                {profile ? (
+                  <p className="small-note" role="status" aria-live="polite">
+                    {busy ? 'Đang kiểm tra…' : 'App tự mở khi nhập đúng 4 số.'}
+                  </p>
+                ) : (
+                  <button
+                    className="button primary full"
+                    type="submit"
+                    disabled={busy || remaining > 0}
+                  >
+                    {busy ? 'Đang lưu…' : 'Lưu PIN & vào nhà'}
+                  </button>
+                )}
               </form>
             )}
             <p className="small-note">
