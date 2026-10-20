@@ -1,0 +1,27 @@
+{
+  "name": "nha-minh",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "vitest run",
+    "prices": "node scripts/fetch-prices.mjs",
+    "devices": "node scripts/approve-devices.mjs"
+  },
+  "dependencies": {
+    "firebase": "^12.0.0",
+    "iztro": "^2.6.2",
+    "preact": "^10.27.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.0",
+    "vite": "^7.1.0",
+    "vite-plugin-pwa": "^1.0.3",
+    "vitest": "^3.2.0"
+  }
+}

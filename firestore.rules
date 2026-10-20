@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function allowed() {
+   // Thay bằng UID lấy từ Cài đặt trên từng bản cài iPhone/iPad đã tin cậy.
+   // Mã PIN không xuất hiện trong Rules và không cấp quyền cho thiết bị mới.
+   return request.auth != null
+    && request.auth.token.firebase.sign_in_provider == 'anonymous'
+    && request.auth.uid in ['UID_THIET_BI_1', 'UID_THIET_BI_2'];
+  }
+  function text(v, max) { return v is string && v.size() <= max; }
+  function category(v) { return v in ['rau', 'thit_ca', 'gia_vi', 'gia_dung', 'khac']; }
+  match /shopping_items/{id} {
+   allow read, delete: if allowed();
+   allow create, update: if allowed()
+    && request.resource.data.keys().hasOnly(['name','qty','category','done','addedBy','createdAt'])
+    && text(request.resource.data.name,100) && request.resource.data.name.size() > 0
+    && text(request.resource.data.qty,50) && category(request.resource.data.category)
+    && request.resource.data.done is bool && text(request.resource.data.addedBy,200)
+    && request.resource.data.createdAt is timestamp;
+  }
+  match /shopping_suggestions/{id} {
+   allow read, delete: if allowed();
+   allow create, update: if allowed()
+    && request.resource.data.keys().hasOnly(['name','category','count','lastUsed'])
+    && text(request.resource.data.name,100) && request.resource.data.name.size() > 0
+    && category(request.resource.data.category) && request.resource.data.count is int
+    && request.resource.data.count > 0 && request.resource.data.lastUsed is timestamp;
+  }
+  match /memorials/{id} {
+   allow read, delete: if allowed();
+   allow create, update: if allowed()
+    && request.resource.data.keys().hasOnly(['name','relation','side','lunarDay','lunarMonth','isLeapMonth','leapPolicy','deathYear','note'])
+    && text(request.resource.data.name,100) && request.resource.data.name.size() > 0
+    && text(request.resource.data.relation,100) && request.resource.data.side in ['noi','ngoai']
+    && request.resource.data.lunarDay is int && request.resource.data.lunarDay >= 1 && request.resource.data.lunarDay <= 30
+    && request.resource.data.lunarMonth is int && request.resource.data.lunarMonth >= 1 && request.resource.data.lunarMonth <= 12
+    && request.resource.data.isLeapMonth is bool
+    && (!('leapPolicy' in request.resource.data) || request.resource.data.leapPolicy in ['regular','preferLeap'])
+    && (!('deathYear' in request.resource.data) || (request.resource.data.deathYear is int && request.resource.data.deathYear >= 1 && request.resource.data.deathYear <= 2100))
+    && (!('note' in request.resource.data) || text(request.resource.data.note,2000));
+  }
+  match /{document=**} { allow read, write: if false; }
+ }
+}
