@@ -25,20 +25,25 @@ export function describe(bits: number) {
   return { number: matrix[upper][lower], upper: trigrams[upper], lower: trigrams[lower], bits };
 }
 export function cast(bits: number, moving: number) {
+  if (!Number.isInteger(moving) || moving < 0 || moving > 6) throw Error('Hào động không hợp lệ.');
+  return castMany(bits, moving ? [moving] : []);
+}
+export function castMany(bits: number, movingLines: number[]) {
   if (
     !Number.isInteger(bits) ||
     bits < 0 ||
     bits > 63 ||
-    !Number.isInteger(moving) ||
-    moving < 0 ||
-    moving > 6
+    movingLines.some((n) => !Number.isInteger(n) || n < 1 || n > 6)
   )
     throw Error('Quẻ không hợp lệ.');
+  const lines = [...new Set(movingLines)].sort((a, b) => a - b);
+  const mask = lines.reduce((value, line) => value | (1 << (line - 1)), 0);
   return {
     main: describe(bits),
     mutual: describe(((bits >> 1) & 7) | (((bits >> 2) & 7) << 3)),
-    changed: moving ? describe(bits ^ (1 << (moving - 1))) : null,
-    moving,
+    changed: mask ? describe(bits ^ mask) : null,
+    moving: lines.length === 1 ? lines[0] : 0,
+    movingLines: lines,
   };
 }
 export function byNumbers(a: string, b: string) {
@@ -50,6 +55,18 @@ export function byNumbers(a: string, b: string) {
     down = Number((y + 7n) % 8n),
     moving = Number((x + y + 5n) % 6n) + 1;
   return cast((trigrams[up].bits << 3) | trigrams[down].bits, moving);
+}
+export function byCoins(values: number[]) {
+  if (
+    values.length !== 6 ||
+    values.some((value) => !Number.isInteger(value) || value < 6 || value > 9)
+  )
+    throw Error('Cần đúng sáu lần gieo, mỗi lần có tổng 6, 7, 8 hoặc 9.');
+  const bits = values.reduce((value, coin, i) => value | ((coin % 2) << i), 0);
+  return castMany(
+    bits,
+    values.flatMap((coin, i) => (coin === 6 || coin === 9 ? [i + 1] : [])),
+  );
 }
 export function bySerial(serial: string) {
   const digits = serial.replace(/[^0-9]/g, '');

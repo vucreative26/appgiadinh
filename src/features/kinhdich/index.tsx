@@ -1,129 +1,146 @@
 import { lazy, Suspense } from 'preact/compat';
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { PageTitle, Tabs } from '../../components/Shared';
 import { Icon } from '../../components/Icon';
-import { cast, byNumbers, bySerial, byTime } from '../../lib/oracle';
+import { cast, castMany, byCoins, byNumbers, bySerial, byTime } from '../../lib/oracle';
+import { analyse, calendarContext, detailedPrompt, relatives } from '../../lib/liuyao';
 import { todayParts, isoDate, VN } from '../../lib/lunar';
-import hexagrams from '../../data/64que.json';
 import { copyText } from '../../lib/storage';
 import { useFamily } from '../../context';
+import { HexLines } from './HexLines';
+import { ReadingView } from './ReadingView';
+import { HexagramLibrary, OracleReference } from './HexagramContent';
+import './oracle.css';
 const Astrology = lazy(() => import('../tuvi'));
-function Lines({
-  bits,
-  moving = 0,
-  onChange,
-}: {
-  bits: number;
-  moving?: number;
-  onChange?: (i: number) => void;
-}) {
-  return (
-    <div className="hex-lines">
-      {[5, 4, 3, 2, 1, 0].map((i) => {
-        const line = (
-          <>
-            <span className={'hex-line ' + ((bits >> i) & 1 ? 'yang' : 'yin')}>
-              <i />
-              <i />
-            </span>
-            <small>
-              {i + 1}
-              {moving === i + 1 ? ' ◉' : ''}
-            </small>
-          </>
-        );
-        return onChange ? (
-          <button
-            type="button"
-            aria-label={`Hào ${i + 1}: ${(bits >> i) & 1 ? 'dương' : 'âm'}, nhấn để đổi`}
-            className={moving === i + 1 ? 'moving' : ''}
-            onClick={() => onChange(i)}
-          >
-            {line}
-          </button>
-        ) : (
-          <div className={moving === i + 1 ? 'moving' : ''}>{line}</div>
-        );
-      })}
-    </div>
-  );
-}
+type Session = { result: ReturnType<typeof cast>; note: string; date: string; time: string };
 function Divination() {
-  const { toast } = useFamily(),
-    [method, setMethod] = useState('time'),
+  const { toast } = useFamily();
+  const [view, setView] = useState<'cast' | 'library' | 'reference'>('cast');
+  const [method, setMethod] = useState('time'),
     [bits, setBits] = useState(63),
-    [moving, setMoving] = useState(1),
-    [date, setDate] = useState(isoDate(todayParts())),
-    [time, setTime] = useState(
-      new Intl.DateTimeFormat('en-GB', {
-        timeZone: VN,
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: 'h23',
-      }).format(new Date()),
-    ),
-    [serial, setSerial] = useState(''),
+    [moving, setMoving] = useState<number[]>([1]);
+  const [coins, setCoins] = useState([7, 7, 7, 7, 7, 7]);
+  const [date, setDate] = useState(isoDate(todayParts()));
+  const [time, setTime] = useState(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: VN,
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).format(new Date()),
+  );
+  const [serial, setSerial] = useState(''),
     [a, setA] = useState(''),
-    [b, setB] = useState(''),
-    [result, setResult] = useState<ReturnType<typeof cast> | null>(null),
-    [note, setNote] = useState(''),
+    [b, setB] = useState('');
+  const [question, setQuestion] = useState(''),
+    [target, setTarget] = useState('Thế');
+  const [session, setSession] = useState<Session | null>(null),
     [error, setError] = useState('');
+  const reading = session ? analyse(session.result, session.date, session.time, target) : null;
+  useEffect(() => {
+    if (!session) return;
+    requestAnimationFrame(() =>
+      document.querySelector('.reading-view')?.scrollIntoView({
+        block: 'start',
+        behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      }),
+    );
+  }, [session]);
   function generate(e: Event) {
     e.preventDefault();
     try {
       setError('');
+      calendarContext(date, time);
+      let result: ReturnType<typeof cast>, note: string;
       if (method === 'lines') {
-        setResult(cast(bits, moving));
-        setNote(`Nhập sáu hào trực tiếp; đánh số từ dưới lên; hào động ${moving || 'không có'}.`);
+        result = castMany(bits, moving);
+        note =
+          'Nhập sáu hào trực tiếp, hào 1 từ dưới lên. Hào động: ' +
+          (moving.join(', ') || 'không có') +
+          '.';
+      } else if (method === 'coins') {
+        result = byCoins(coins);
+        note =
+          'Tổng ba đồng xu mỗi hào, từ dưới lên: ' +
+          coins.join(' – ') +
+          '. Quy ước một mặt 2, mặt kia 3; 6 lão âm động, 7 thiếu dương tĩnh, 8 thiếu âm tĩnh, 9 lão dương động.';
       } else if (method === 'time') {
-        const r = byTime(date, time);
-        setResult(r.result);
-        setNote(`Lập lúc ${time}, ${date} (UTC+7). ${r.note}`);
+        const value = byTime(date, time);
+        result = value.result;
+        note = 'Mai Hoa theo ngày giờ. ' + value.note;
       } else if (method === 'serial') {
-        setResult(bySerial(serial));
-        setNote(
-          `Sê-ri ${serial}. Bỏ ký tự không phải số, chia chuỗi chữ số thành hai nửa; nửa đầu dài hơn nếu lẻ.`,
-        );
+        result = bySerial(serial);
+        note =
+          'Sê-ri ' +
+          serial +
+          '. Bỏ ký tự không phải số, chia chữ số thành hai nửa; nửa đầu dài hơn nếu lẻ. Thượng/hạ số chia 8, tổng chia 6 lấy hào động. Đây là quy ước số của app, không phải phép gieo ba đồng xu.';
       } else {
-        setResult(byNumbers(a, b));
-        setNote(`Thượng số ${a}; hạ số ${b}.`);
+        result = byNumbers(a, b);
+        note =
+          'Mai Hoa hai số: thượng số ' +
+          a +
+          '; hạ số ' +
+          b +
+          '. Mỗi số chia 8 lấy quái, tổng chia 6 lấy hào động; dư 0 lấy 8 hoặc 6.';
       }
+      setSession({ result, note, date, time });
     } catch (e) {
-      setError((e as Error).message);
+      setError(e instanceof Error ? e.message : 'Chưa lập được quẻ.');
     }
   }
   async function copy() {
-    if (!result) return;
-    const main = hexagrams[result.main.number - 1],
-      mutual = hexagrams[result.mutual.number - 1],
-      changed = result.changed && hexagrams[result.changed.number - 1];
-    const text = `Xin giải thích quẻ Kinh Dịch sau theo hướng dễ hiểu, phân biệt ý nghĩa truyền thống và suy luận. Không khẳng định dự đoán chắc chắn.\n\nDỮ LIỆU\n${note}\nQuy ước Mai Hoa: Càn 1, Đoài 2, Ly 3, Chấn 4, Tốn 5, Khảm 6, Cấn 7, Khôn 8; dư 0 lấy 8 hoặc 6. Với hai số, hào động lấy tổng hai số chia 6.\nQuẻ chủ #${result.main.number}: ${main[0]}\nHào từ dưới lên: ${Array.from({ length: 6 }, (_, i) => ((result.main.bits >> i) & 1 ? 'Dương' : 'Âm')).join(' – ')}\nHào động: ${result.moving || 'Không có'}\nQuẻ hỗ #${result.mutual.number}: ${mutual[0]}\nQuẻ biến: ${changed ? changed[0] : 'Không có'}\n${result.moving ? `Thể: ${result.moving <= 3 ? result.main.upper.name : result.main.lower.name}; Dụng: ${result.moving <= 3 ? result.main.lower.name : result.main.upper.name}.` : ''}\n\nLỜI THAM KHẢO DO APP BIÊN SOẠN\n${main[1]}\n\nCÂU HỎI CỦA TÔI: [Điền bối cảnh tại đây]`;
+    if (!session || !reading) return;
     try {
-      await copyText(text);
-      toast('Đã copy quẻ và lời luận để mang sang AI.');
+      await copyText(detailedPrompt(session.result, reading, session.note, question));
+      toast('Đã copy đầy đủ quẻ, Lục hào, cổ văn và câu hỏi cho AI.');
     } catch (e) {
-      toast((e as Error).message);
+      toast(e instanceof Error ? e.message : 'Chưa sao chép được.');
     }
   }
   return (
     <>
-      <div className="oracle-layout">
-        <section className="card padded">
-          <h2>Bạn muốn lập quẻ thế nào?</h2>
-          <label className="field">
-            Cách nhập
-            <select value={method} onChange={(e) => setMethod(e.currentTarget.value)}>
-              <option value="time">Theo ngày giờ</option>
-              <option value="lines">Nhập sáu hào Âm / Dương</option>
-              <option value="serial">Theo số sê-ri tiền</option>
-              <option value="numbers">Theo hai số tự chọn</option>
-            </select>
-          </label>
-          <form onSubmit={generate}>
-            {method === 'time' ? (
+      <Tabs
+        value={view}
+        onChange={setView}
+        options={[
+          { value: 'cast', label: 'Lập & luận quẻ' },
+          { value: 'library', label: '64 quẻ' },
+          { value: 'reference', label: 'Kiến thức' },
+        ]}
+      />
+      {view === 'library' ? (
+        <HexagramLibrary />
+      ) : view === 'reference' ? (
+        <OracleReference />
+      ) : (
+        <div className="oracle-workspace">
+          <section className="card padded casting-form">
+            <div className="eyebrow">MỘT VIỆC · MỘT CÂU HỎI</div>
+            <h2>Lập quẻ cho điều bạn đang nghĩ</h2>
+            <form onSubmit={generate}>
+              <label>
+                Câu hỏi & bối cảnh
+                <textarea
+                  rows={3}
+                  maxLength={3000}
+                  placeholder="Bạn đang hỏi việc gì, trong khoảng thời gian nào?"
+                  value={question}
+                  onInput={(e) => setQuestion(e.currentTarget.value)}
+                />
+              </label>
+              <label>
+                Cách lập quẻ
+                <select value={method} onChange={(e) => setMethod(e.currentTarget.value)}>
+                  <option value="time">Mai Hoa · theo ngày giờ</option>
+                  <option value="lines">Nhập Âm / Dương & chọn hào động</option>
+                  <option value="coins">Lục hào · nhập kết quả ba đồng xu</option>
+                  <option value="serial">Mai Hoa · số sê-ri tiền</option>
+                  <option value="numbers">Mai Hoa · hai số tự chọn</option>
+                </select>
+              </label>
               <div className="form-grid">
                 <label>
-                  Ngày dương
+                  Ngày lập quẻ
                   <input
                     type="date"
                     min="1900-01-01"
@@ -142,28 +159,78 @@ function Divination() {
                     onInput={(e) => setTime(e.currentTarget.value)}
                   />
                 </label>
-                <p className="small-note wide">
-                  Dùng chi năm + tháng âm + ngày âm làm thượng quái; thêm chi giờ làm hạ quái và hào
-                  động. Giờ Tý từ 23:00; giữ ngày âm của ngày đã chọn. Tháng nhuận dùng cùng số
-                  tháng.
-                </p>
               </div>
-            ) : method === 'lines' ? (
-              <>
-                <p className="small-note">Nhấn từng hào để đổi âm/dương. Hào 1 ở dưới cùng.</p>
-                <Lines bits={bits} moving={moving} onChange={(i) => setBits(bits ^ (1 << i))} />
-                <label>
-                  Hào động
-                  <select value={moving} onChange={(e) => setMoving(Number(e.currentTarget.value))}>
-                    <option value={0}>Không có hào động</option>
+              <p className="small-note">
+                Dùng thời điểm này để an Can Chi, Nhật/Nguyệt và Lục thú cho mọi cách nhập. Kết quả
+                chỉ đổi khi bấm Lập quẻ.
+              </p>
+              {method === 'time' ? (
+                <p className="notice">
+                  Mai Hoa: chi năm âm + tháng âm + ngày âm lấy thượng quái; cộng chi giờ lấy hạ quái
+                  và một hào động. Tháng nhuận dùng cùng số tháng, 23:00 vào giờ Tý nhưng giữ ngày
+                  đã chọn.
+                </p>
+              ) : method === 'lines' ? (
+                <>
+                  <p className="small-note">
+                    Nhấn từng hào để đổi âm/dương. Chọn được nhiều hào động, hoặc bỏ hết để lập quẻ
+                    tĩnh.
+                  </p>
+                  <HexLines
+                    bits={bits}
+                    moving={moving}
+                    onChange={(i) => setBits(bits ^ (1 << i))}
+                  />
+                  <fieldset className="moving-picker">
+                    <legend>Hào động · đánh số từ dưới lên</legend>
                     {[1, 2, 3, 4, 5, 6].map((n) => (
-                      <option value={n}>Hào {n}</option>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={moving.includes(n)}
+                          onChange={() =>
+                            setMoving((current) =>
+                              current.includes(n)
+                                ? current.filter((value) => value !== n)
+                                : [...current, n].sort((x, y) => x - y),
+                            )
+                          }
+                        />
+                        Hào {n}
+                      </label>
                     ))}
-                  </select>
-                </label>
-              </>
-            ) : method === 'serial' ? (
-              <>
+                  </fieldset>
+                </>
+              ) : method === 'coins' ? (
+                <>
+                  <p className="small-note">
+                    Gieo ba đồng xu sáu lần, ghi từ dưới lên. Chọn một mặt bằng 2, mặt còn lại bằng
+                    3 và giữ quy ước suốt lần gieo.
+                  </p>
+                  <div className="coin-inputs">
+                    {[5, 4, 3, 2, 1, 0].map((i) => (
+                      <label>
+                        Hào {i + 1}
+                        {i === 0 ? ' · lần gieo đầu' : ''}
+                        <select
+                          value={coins[i]}
+                          onChange={(e) => {
+                            const next = Number(e.currentTarget.value);
+                            setCoins((current) =>
+                              current.map((value, index) => (index === i ? next : value)),
+                            );
+                          }}
+                        >
+                          <option value={6}>6 · Âm động</option>
+                          <option value={7}>7 · Dương tĩnh</option>
+                          <option value={8}>8 · Âm tĩnh</option>
+                          <option value={9}>9 · Dương động</option>
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : method === 'serial' ? (
                 <label>
                   Số sê-ri tiền
                   <input
@@ -174,98 +241,126 @@ function Divination() {
                     onInput={(e) => setSerial(e.currentTarget.value)}
                   />
                 </label>
-                <p className="small-note">
-                  Quy ước của app: tách chữ số thành hai nửa làm thượng/hạ số; lấy tổng hai số tính
-                  hào động. Đây là một cách lập quẻ, không phải quy tắc duy nhất.
-                </p>
-              </>
-            ) : (
-              <div className="form-grid">
-                <label>
-                  Thượng số
-                  <input
-                    inputMode="numeric"
-                    pattern="[0-9]+"
-                    maxLength={100}
-                    required
-                    value={a}
-                    onInput={(e) => setA(e.currentTarget.value)}
-                  />
-                </label>
-                <label>
-                  Hạ số
-                  <input
-                    inputMode="numeric"
-                    pattern="[0-9]+"
-                    maxLength={100}
-                    required
-                    value={b}
-                    onInput={(e) => setB(e.currentTarget.value)}
-                  />
-                </label>
-              </div>
-            )}
-            {error && (
-              <p className="warning" role="alert">
-                {error}
+              ) : (
+                <div className="form-grid">
+                  <label>
+                    Thượng số
+                    <input
+                      inputMode="numeric"
+                      pattern="[0-9]+"
+                      required
+                      maxLength={100}
+                      value={a}
+                      onInput={(e) => setA(e.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    Hạ số
+                    <input
+                      inputMode="numeric"
+                      pattern="[0-9]+"
+                      required
+                      maxLength={100}
+                      value={b}
+                      onInput={(e) => setB(e.currentTarget.value)}
+                    />
+                  </label>
+                </div>
+              )}
+              <label>
+                Dụng thần muốn xét
+                <select value={target} onChange={(e) => setTarget(e.currentTarget.value)}>
+                  <option value="Thế">Thế · bản thân / tổng quát</option>
+                  <option value="Ứng">Ứng · phía đối diện / hoàn cảnh</option>
+                  {relatives.map((kind) => (
+                    <option value={kind}>{kind}</option>
+                  ))}
+                </select>
+              </label>
+              <p className="small-note">
+                Tiền/nguồn lực thường xét Thê tài; công việc xét Quan quỷ; học hành/giấy tờ xét Phụ
+                mẫu; con cái/đầu ra xét Tử tôn. Cần chọn theo đúng việc hỏi. Đổi lựa chọn này sẽ cập
+                nhật phần phân tích của quẻ đang xem.
               </p>
-            )}
-            <button type="submit" className="button primary full">
-              <Icon name="oracle" size={19} />
-              Lập quẻ
-            </button>
-          </form>
-        </section>
-        <section className="card padded oracle-result">
-          {result ? (
-            <>
-              <div className="eyebrow">QUẺ CHỦ · SỐ {result.main.number}</div>
-              <h2 className="oracle-name">{hexagrams[result.main.number - 1][0]}</h2>
-              <Lines bits={result.main.bits} moving={result.moving} />
-              <div className="oracle-summary">
+              {error && (
+                <p className="warning" role="alert">
+                  {error}
+                </p>
+              )}
+              <button type="submit" className="button primary full">
+                <Icon name="oracle" size={19} />
+                Lập quẻ & xem chi tiết
+              </button>
+            </form>
+          </section>
+          {session && reading ? (
+            <ReadingView
+              key={
+                session.result.main.bits +
+                '-' +
+                session.result.movingLines.join() +
+                '-' +
+                session.date +
+                '-' +
+                session.time
+              }
+              result={session.result}
+              reading={reading}
+              note={session.note}
+              onCopy={() => void copy()}
+            />
+          ) : (
+            <section className="card padded oracle-intro">
+              <span className="oracle-symbol">☯</span>
+              <h2>Một quẻ, đủ ba lớp nhìn</h2>
+              <p>
+                Quẻ gốc cho tình thế ban đầu. Quẻ hỗ lấy cấu trúc bên trong. Quẻ biến hình thành từ
+                các hào động.
+              </p>
+              <div className="intro-checks">
                 <span>
-                  Thượng: {result.main.upper.name} · {result.main.upper.element}
+                  <Icon name="check" size={17} />
+                  Bảng Nạp giáp & Lục thân
                 </span>
                 <span>
-                  Hạ: {result.main.lower.name} · {result.main.lower.element}
+                  <Icon name="check" size={17} />
+                  Giải thích sinh khắc từng hào
+                </span>
+                <span>
+                  <Icon name="check" size={17} />
+                  Copy hồ sơ chi tiết cho AI
                 </span>
               </div>
-              <p className="oracle-meaning">{hexagrams[result.main.number - 1][1]}</p>
-              <dl>
-                <dt>Quẻ hỗ</dt>
-                <dd>{hexagrams[result.mutual.number - 1][0]}</dd>
-                <dt>Quẻ biến</dt>
-                <dd>
-                  {result.changed ? hexagrams[result.changed.number - 1][0] : 'Không có hào động'}
-                </dd>
-                {result.moving > 0 && (
-                  <>
-                    <dt>Thể / Dụng</dt>
-                    <dd>
-                      {result.moving <= 3 ? result.main.upper.name : result.main.lower.name} /{' '}
-                      {result.moving <= 3 ? result.main.lower.name : result.main.upper.name}
-                    </dd>
-                  </>
-                )}
-              </dl>
-              <p className="small-note">{note}</p>
-              <button className="button primary full" onClick={copy}>
-                <Icon name="copy" size={18} />
-                Copy để hỏi AI
+              <button
+                className="button secondary"
+                onClick={() => {
+                  try {
+                    calendarContext(date, time);
+                  } catch (error) {
+                    setError(error instanceof Error ? error.message : 'Ngày giờ không hợp lệ.');
+                    return;
+                  }
+                  setError('');
+                  setMethod('lines');
+                  setBits(42);
+                  setMoving([2]);
+                  setSession({
+                    result: cast(42, 2),
+                    note: 'Ví dụ cấu trúc: Hỏa Thủy Vị Tế, hào 2 động thành Hỏa Địa Tấn. Ngày giờ lấy từ ô đang chọn.',
+                    date,
+                    time,
+                  });
+                }}
+              >
+                Xem mẫu Vị Tế → Tấn
               </button>
-            </>
-          ) : (
-            <div className="empty oracle-empty">
-              <span className="oracle-symbol">☯</span>
-              <h3>Một quẻ, một góc nhìn</h3>
-              <p>Chọn cách nhập để xem quẻ chủ, quẻ hỗ, quẻ biến và lời tham khảo.</p>
-            </div>
+            </section>
           )}
-        </section>
-      </div>
+        </div>
+      )}
       <p className="small-note">
-        Chỉ mang tính tham khảo. Lời luận là nội dung ngắn do app biên soạn, không phải nguyên văn
-        Kinh Dịch. App không gọi AI; bạn chủ động sao chép để hỏi thêm.
+        Lời diễn nghĩa và phần giải thích quy tắc do app biên soạn để tham khảo. Nút Copy chứa dữ
+        liệu chi tiết để bạn chủ động mang sang AI; app không gọi AI trực tiếp.
       </p>
     </>
   );
@@ -277,7 +372,7 @@ export default function Oracle() {
       <PageTitle
         eyebrow="THÊM MỘT GÓC NHÌN"
         title="Kinh Dịch & Tử Vi"
-        description="Chiêm nghiệm để hiểu mình, tham khảo để suy ngẫm."
+        description="Lập quẻ, hiểu từng hào và tra cứu cổ văn."
       />
       <Tabs
         value={tab}

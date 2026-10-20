@@ -230,3 +230,7 @@ export function solarTerm(d: number, m: number, y: number) {
   ];
   return names[floor((sun(jd(d, m, y)) / PI) * 12)];
 }
+// Kinh độ Mặt Trời xấp xỉ tại giờ Việt Nam, dùng xác định tháng tiết khí.
+export function solarLongitudeAt(d: number, m: number, y: number, hour: number, minute: number) {
+  return (sun(jd(d, m, y) + (hour + minute / 60) / 24) * 180) / PI;
+}
