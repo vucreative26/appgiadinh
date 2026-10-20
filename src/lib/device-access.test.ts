@@ -29,7 +29,12 @@ vi.mock('firebase/firestore', () => ({
   persistentLocalCache: () => ({}),
   persistentMultipleTabManager: () => ({}),
   collection: (_: unknown, name: string) => name,
-  doc: (_: unknown, name: string, id: string) => `${name}/${id}`,
+  doc: (_: unknown, name: string, id: string) => {
+    // Mô phỏng ràng buộc ID của Firestore để phát hiện tên dành riêng trước khi gọi server.
+    if (/^__.*__$/.test(id))
+      throw Object.assign(new Error('Document ID is reserved'), { code: 'invalid-argument' });
+    return `${name}/${id}`;
+  },
   getDocFromServer: (...args: unknown[]) => sdk.probe(...args),
   onSnapshot: (
     name: string,
@@ -48,7 +53,7 @@ vi.mock('firebase/firestore', () => ({
   deleteDoc: vi.fn(),
   updateDoc: vi.fn(),
 }));
-import { start, checkDeviceAccess, registerDevice, authError } from '../cloud';
+import { start, checkDeviceAccess, registerDevice, authError, accessError } from '../cloud';
 describe('Quyền thiết bị và vòng đời kết nối', () => {
   let stop: (() => void) | undefined, storage: Map<string, string>, online: { onLine: boolean };
   function setup() {
@@ -99,7 +104,7 @@ describe('Quyền thiết bị và vòng đời kết nối', () => {
     const c = setup();
     expect(sdk.snapshots).toHaveLength(0);
     await vi.waitFor(() => expect(last(c.device)?.approved).toBe(true));
-    expect(sdk.probe).toHaveBeenCalledWith('shopping_suggestions/__device_access_check__');
+    expect(sdk.probe).toHaveBeenCalledWith('shopping_suggestions/device-access-check');
     expect(last(c.user)).toEqual({ uid: sdk.auth.currentUser!.uid, name: 'Chồng' });
     expect(sdk.snapshots.map((s) => s.name)).toEqual([
       'shopping_items',
@@ -182,5 +187,17 @@ describe('Quyền thiết bị và vòng đời kết nối', () => {
   });
   it('lỗi chưa bật Anonymous chỉ đúng chỗ cần thiết lập', () => {
     expect(authError({ code: 'auth/operation-not-allowed' })).toContain('bật Anonymous');
+  });
+  it('lỗi cấu hình trả mã cụ thể thay vì báo nhầm UID chưa duyệt', async () => {
+    sdk.probe.mockRejectedValue({ code: 'invalid-argument' });
+    const c = setup();
+    await vi.waitFor(() => expect(last(c.device)?.status).toBe('error'));
+    expect(last(c.error)).toContain('invalid-argument');
+    expect(last(c.user)).toBeNull();
+    expect(sdk.snapshots).toHaveLength(0);
+  });
+  it('phân biệt database chưa có và quá thời gian phản hồi', () => {
+    expect(accessError({ code: 'not-found' })).toContain('(default)');
+    expect(accessError(Error('timeout'))).toContain('timeout');
   });
 });

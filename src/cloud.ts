@@ -45,6 +45,26 @@ export function authError(error: unknown) {
     return 'Firebase đang giới hạn lượt đăng ký. Vui lòng thử lại sau.';
   return 'Chưa đăng ký được thiết bị. Kiểm tra cấu hình Firebase và Anonymous Authentication.';
 }
+export function accessError(error: unknown) {
+  const code =
+    (error as { code?: string })?.code ||
+    (error instanceof Error && error.message === 'timeout' ? 'timeout' : 'unknown');
+  if (code === 'invalid-argument')
+    return 'Yêu cầu kiểm tra Firestore không hợp lệ (invalid-argument). Hãy cập nhật app lên bản mới.';
+  if (code === 'not-found')
+    return 'Chưa tìm thấy database Firestore (default) của project này (not-found).';
+  if (code === 'timeout' || code === 'deadline-exceeded')
+    return (
+      'Firestore chưa phản hồi trong thời gian chờ. Kiểm tra mạng rồi nhấn Kiểm tra quyền lại (' +
+      code +
+      ').'
+    );
+  if (code === 'unauthenticated')
+    return 'Phiên thiết bị chưa được Firebase xác thực (unauthenticated). Khóa app rồi mở lại để thử lại.';
+  return (
+    'Chưa kiểm tra được quyền thiết bị. Kiểm tra mạng và cấu hình Firestore. Mã lỗi: ' + code + '.'
+  );
+}
 interface Callbacks {
   device: (value: Device) => void;
   user: (u: FamilyUser | null) => void;
@@ -146,8 +166,9 @@ export function start(c: Callbacks, name: string) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       // Đọc trực tiếp server. Cache của một tài liệu không chứng minh quyền đã được duyệt.
+      // Không dùng ID dạng __...__: Firestore dành riêng mẫu tên đó.
       await Promise.race([
-        getDocFromServer(doc(db, 'shopping_suggestions', '__device_access_check__')),
+        getDocFromServer(doc(db, 'shopping_suggestions', 'device-access-check')),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(Error('timeout')), 10000);
         }),
@@ -166,9 +187,7 @@ export function start(c: Callbacks, name: string) {
       } else {
         stopData();
         c.device({ uid, approved: false, status: 'error' });
-        c.error(
-          'Chưa kiểm tra được quyền thiết bị. Kiểm tra mạng và Firestore đã tạo rồi thử lại.',
-        );
+        c.error(accessError(error));
       }
     } finally {
       if (timer) clearTimeout(timer);
