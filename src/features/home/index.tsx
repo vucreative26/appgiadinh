@@ -1,3 +1,5 @@
+import { usePin } from '../../pin-context';
+import { CalendarArt } from '../../components/CalendarArt';
 import { useFamily } from '../../context';
 import { todayParts, solarToLunar, canChiDay, canChiYear, jd, VN } from '../../lib/lunar';
 import { catholicInfo } from '../../lib/catholic';
@@ -6,6 +8,7 @@ import { usePrices } from '../../lib/prices';
 import { money } from '../../lib/money';
 import { Icon } from '../../components/Icon';
 export default function Home() {
+  const { profile } = usePin();
   const today = todayParts(),
     [d, m, y] = today,
     lunar = solarToLunar(d, m, y),
@@ -23,11 +26,12 @@ export default function Home() {
     <>
       <div className="home-heading">
         <div>
-          <div className="eyebrow">KHÔNG GIAN CỦA CHÚNG MÌNH</div>
+          <div className="eyebrow">MỘT GÓC NHỎ, NHIỀU YÊU THƯƠNG</div>
           <h1>
-            Về nhà thôi<span className="title-dot">.</span>
+            Chào {profile?.name || 'nhà mình'}
+            <span className="title-dot">.</span>
           </h1>
-          <p>Một ngày mới, những điều thân quen.</p>
+          <p>Hôm nay, mình cùng chăm chút tổ ấm.</p>
         </div>
         <div className="date-pill">
           <Icon name="calendar" size={17} />
@@ -73,34 +77,35 @@ export default function Home() {
           </a>
         </div>
         <div className="hero-art" aria-hidden="true">
-          <svg viewBox="0 0 320 260" fill="none">
-            <circle cx="225" cy="72" r="43" fill="#e8c989" opacity=".9" />
-            <circle cx="225" cy="72" r="58" stroke="#f0dfb7" opacity=".25" />
-            <path d="M5 232C91 156 158 173 320 118v142H5Z" fill="#759986" opacity=".35" />
-            <path d="M0 253c113-92 204-85 320-39v46H0Z" fill="#b7c7ab" opacity=".25" />
-            <path
-              d="m86 229 25-109m-12 55c-42 0-55-30-40-49 25 3 43 19 40 49Zm11-41c28 3 45-15 45-36-30-3-47 11-45 36Zm-21 61c24 1 48-16 47-36-26-4-44 14-47 36Z"
-              stroke="#d1dfc0"
-              stroke-width="2"
-              fill="#aec9ad"
-              fill-opacity=".2"
-            />
-            <path d="M164 230V139l49-40 49 40v91h-36v-52h-25v52Z" fill="#e7e8cd" />
-            <path
-              d="m153 142 60-50 60 50"
-              stroke="#e7e8cd"
-              stroke-width="8"
-              stroke-linecap="round"
-            />
-            <rect x="178" y="150" width="18" height="21" rx="2" fill="#799282" />
-            <path
-              d="M288 227V165m0 29c-28-7-37-27-27-38 23 9 27 24 27 38Zm0-15c26-4 34-22 27-33-21 7-27 17-27 33Z"
-              stroke="#a9c5a9"
-              stroke-width="2"
-            />
-          </svg>
+          <CalendarArt day={d} />
         </div>
       </section>
+      <nav className="quick-access" aria-label="Tiện ích thường dùng">
+        <a href="#/dicho">
+          <span className="quick-icon peach">
+            <Icon name="bag" />
+          </span>
+          <span>Đi chợ</span>
+        </a>
+        <a href="#/sharebill">
+          <span className="quick-icon mint">
+            <Icon name="split" />
+          </span>
+          <span>Chia tiền</span>
+        </a>
+        <a href="#/dich">
+          <span className="quick-icon lavender">
+            <Icon name="oracle" />
+          </span>
+          <span>Gieo quẻ</span>
+        </a>
+        <a href="#/lich">
+          <span className="quick-icon blue">
+            <Icon name="calendar" />
+          </span>
+          <span>Xem lịch</span>
+        </a>
+      </nav>
       <div className="section-heading">
         <h2>Một chút hôm nay</h2>
         <span>Những điều đáng nhớ</span>

@@ -6,6 +6,7 @@ import { useLocal } from './lib/storage';
 import { Icon, type IconName } from './components/Icon';
 import { PinProvider, usePin } from './pin-context';
 import './style.css';
+import './refresh.css';
 const Home = lazy(() => import('./features/home'));
 const Calendar = lazy(() => import('./features/lich'));
 const Oracle = lazy(() => import('./features/kinhdich'));
