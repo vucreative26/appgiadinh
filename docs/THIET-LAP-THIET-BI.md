@@ -41,10 +41,10 @@ Nếu gửi UID cho người hỗ trợ để chỉnh Rules, chỉ gửi UID, kh
 ## Dùng hằng ngày
 
 - Mở app → nhập PIN → dùng. Không có ô email, Google hoặc OTP.
-- App tự khóa khi chuyển ứng dụng/ẩn tab/tải lại. Menu góc trên có **Khóa app**.
+- Mặc định rời app dưới 5 phút thì quay lại dùng tiếp; quá thời gian sẽ khóa. Đổi trong Cài đặt → Thời gian tự khóa. Tải lại hoặc mở phiên mới vẫn cần mở khóa. Menu góc trên có **Khóa app** để khóa ngay.
 - Đổi PIN trong Cài đặt, cần PIN hiện tại. PIN mới chỉ áp dụng bản cài đang dùng.
 - Sau 5 lần sai phải đợi, thời gian chờ tăng nếu tiếp tục nhập sai.
-- Chuyển sang AI để dán lời luận sẽ khóa app; nội dung đã Copy vẫn ở clipboard. Share Bill giữ trong RAM khi chỉ khóa/mở lại, tải lại trang sẽ mất phiên như trước.
+- Chuyển sang AI để dán lời luận rồi quay lại trong thời gian chờ sẽ không cần nhập PIN; quá thời gian sẽ khóa. Nội dung đã Copy vẫn ở clipboard. Share Bill giữ trong RAM khi chỉ khóa/mở lại, tải lại trang sẽ mất phiên như trước.
 - Máy mới cần mạng để tạo UID và kiểm tra quyền. Máy từng được duyệt có thể dùng dữ liệu đã tải khi ngoại tuyến.
 
 ## Đổi máy, mất máy, quên PIN
@@ -54,3 +54,12 @@ Nếu gửi UID cho người hỗ trợ để chỉnh Rules, chỉ gửi UID, kh
 - Đổi máy/xóa dữ liệu Safari/cài lại có thể tạo UID mới; đăng ký và duyệt lại.
 - Quên PIN: không thể đọc lại mã gốc. Sau khi chắc chắn thao tác đã đồng bộ, xóa dữ liệu app trong trình duyệt rồi tạo lại PIN, kiểm tra UID và duyệt lại nếu đổi. Việc xóa dữ liệu cục bộ có thể mất thao tác chưa đồng bộ và phiên Share Bill.
 - Không xem PIN như mã hóa dữ liệu: nó khóa giao diện trên máy. Firestore Rules và danh tính đã được duyệt bảo vệ dữ liệu trên mạng.
+
+## Face ID / Touch ID (tùy chọn)
+
+1. Trên iPhone/iPad, mở đúng bản cài app qua HTTPS. Máy cần có khóa màn hình và Safari hỗ trợ WebAuthn.
+2. Khác → Cài đặt → Face ID / Touch ID.
+3. Nhập PIN hiện tại, nhấn Bật, rồi nhấn Tiếp tục để máy xác nhận.
+4. Lần sau app khóa, nhấn **Mở bằng Face ID / Touch ID**. Hệ điều hành có thể chọn mã khóa máy thay cho sinh trắc học. PIN của app vẫn dùng được.
+
+Không cần đổi Firebase Rules hay cấp UID mới. Đổi PIN app sẽ yêu cầu thiết lập lại liên kết mở khóa bằng thiết bị. Xóa dữ liệu trình duyệt cũng xóa liên kết này. Nếu iOS đóng tiến trình nền do thiếu bộ nhớ, lần mở lại là phiên mới nên vẫn cần mở khóa.

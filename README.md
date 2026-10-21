@@ -45,7 +45,7 @@ npm run devices -- UID_THAT_MAY_1 UID_THAT_MAY_2
 
 Lệnh thay toàn bộ danh sách cho phép: phải truyền cả UID cũ muốn giữ. Hướng dẫn từng bước: [Thiết lập thiết bị](docs/THIET-LAP-THIET-BI.md).
 
-PIN kiểm tra bằng PBKDF2/SHA-256, salt ngẫu nhiên riêng mỗi bản cài, không lưu mã gốc hay gửi lên Firebase. Sau mỗi 5 lần sai phải đợi, tăng từ 30 giây đến tối đa 5 phút; số lần sai giữ qua tải lại. App tự khóa khi ẩn tab/chuyển ứng dụng, pagehide hoặc tải lại. Có nút Khóa app và đổi PIN bằng PIN hiện tại. Khóa app dừng listener Firestore và gỡ giao diện dữ liệu chung. PIN là khóa giao diện, **không mã hóa Firestore cache hoặc thay thế quyền truy cập server**. Giới hạn thử PIN ở client không chống được người đã kiểm soát mã nguồn/bộ nhớ máy.
+PIN kiểm tra bằng PBKDF2/SHA-256, salt ngẫu nhiên riêng mỗi bản cài, không lưu mã gốc hay gửi lên Firebase. Sau mỗi 5 lần sai phải đợi, tăng từ 30 giây đến tối đa 5 phút; số lần sai giữ qua tải lại. Mặc định app tự khóa sau 5 phút chạy nền; quay lại trước thời hạn sẽ dùng tiếp. Cài đặt cho chọn khóa ngay / 30 giây / 1 phút / 5 phút / 15 phút. Khi iOS tạm dừng timer, app kiểm tra lại thời hạn lúc trở về. Tải lại hoặc mở phiên mới vẫn cần mở khóa. Có nút Khóa app và đổi PIN bằng PIN hiện tại. Khóa app dừng listener Firestore và gỡ giao diện dữ liệu chung. PIN là khóa giao diện, **không mã hóa Firestore cache hoặc thay thế quyền truy cập server**. Giới hạn thử PIN ở client không chống được người đã kiểm soát mã nguồn/bộ nhớ máy.
 
 Không cần service account JSON, mật khẩu Google, OTP hay token ghi repo trong frontend. Firebase web config công khai trong bundle là bình thường; quyền đọc/ghi nằm ở Rules.
 
@@ -109,3 +109,9 @@ Safari → Chia sẻ → Thêm vào Màn hình chính để cài PWA. Cần URL 
 `npm test`: kiểm thử lunar, catholic, memorials, money, oracle, astrology, parser giá, PIN, tạo whitelist UID và các luồng phê duyệt/thu hồi quyền thiết bị. Các bài quyền thiết bị dùng Firebase SDK mock để mô phỏng server cho phép, từ chối, ngoại tuyến và kết quả đến muộn khi app đã khóa; chưa thay thế test Rules trên emulator/server thật. `npm run build`: TypeScript + build + service worker.
 
 Firebase web config đã được nhập vào `.env` cục bộ. Chưa nghiệm thu Anonymous Auth/Rules trên project thật, hai máy đồng bộ, cài PWA trên Safari thật hoặc lịch Actions. Cần bật Anonymous, lấy UID của từng bản cài thật, publish Rules và có repo GitHub để triển khai. Không cần cung cấp email, mật khẩu hoặc PIN. Cần thêm lá số mẫu/nguồn quy tắc nếu muốn xác minh Tử Vi theo trường phái riêng.
+
+### Mở khóa bằng Face ID / Touch ID
+
+Cài đặt → Face ID / Touch ID → nhập PIN hiện tại → Bật → Tiếp tục và xác nhận trên máy. Dùng WebAuthn với khóa nền tảng, xác minh người dùng bắt buộc; app kiểm tra challenge, origin, RP ID và chữ ký ES256 bằng khóa công khai đã lưu. Hệ điều hành chọn Face ID, Touch ID hoặc mã khóa máy. App không nhận khuôn mặt/vân tay. Khi app khóa, chạm nút mở bằng thiết bị hoặc nhập PIN. Đổi PIN làm mất hiệu lực liên kết cũ; bật lại nếu muốn.
+
+Cần HTTPS và trình duyệt có WebAuthn (Safari cập nhật trên iPhone/iPad); thiết lập riêng trong bản cài đang dùng. Việc tắt trong app chỉ xóa liên kết cục bộ, không xóa passkey khỏi trình quản lý mật khẩu của hệ điều hành. Đây là khóa giao diện cục bộ như PIN, không thay Firebase Auth/Rules hoặc mã hóa cache. Chưa kiểm thử Face ID trên iPhone thật; bộ kiểm thử dùng chữ ký P-256 thật để kiểm tra xác minh và các phản hồi sai.

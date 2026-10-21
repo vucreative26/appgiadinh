@@ -3,6 +3,20 @@
   margin-bottom: 20px;
   font-size: 12px;
 }
+.biometric-settings .section-heading h2 {
+  margin-bottom: 0;
+}
+.biometric-form {
+  margin: 20px 0;
+}
+.biometric-settings .connection-status {
+  margin: 18px 0;
+  color: var(--accent);
+}
+.biometric-unlock {
+  margin-top: 24px;
+  font-size: 13px;
+}
 :root {
   color: #172d47;
   background: #f2f5fa;

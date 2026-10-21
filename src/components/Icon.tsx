@@ -1,4 +1,5 @@
 export type IconName =
+  | 'face'
   | 'lock'
   | 'home'
   | 'calendar'
@@ -24,6 +25,7 @@ export type IconName =
   | 'trash'
   | 'menu';
 const paths: Record<IconName, string> = {
+  face: 'M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3M8 9v2m8-2v2m-4 0v3m-4 2c2 2 6 2 8 0',
   lock: 'M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5Zm7 5v2',
   home: 'm3 10 9-7 9 7M5 9v12h5v-7h4v7h5V9',
   calendar:

@@ -10,10 +10,35 @@ import {
   type PinRecord,
 } from './lib/pin';
 import { Icon } from './components/Icon';
+import { SessionLock, LOCK_DELAYS, readLockDelay } from './lib/session-lock';
+import {
+  biometricAvailable,
+  biometricError,
+  readBiometric,
+  enrollBiometric,
+  unlockBiometric,
+  type BiometricRecord,
+} from './lib/biometric';
 const PREFIX = `nha-${import.meta.env.VITE_FIREBASE_PROJECT_ID || 'local'}`;
 const PIN_KEY = `${PREFIX}-pin-v1`,
   ATTEMPT_KEY = `${PREFIX}-pin-attempts`,
-  LOCK_KEY = `${PREFIX}-lock`;
+  LOCK_KEY = `${PREFIX}-lock`,
+  DELAY_KEY = `${PREFIX}-lock-delay`,
+  BIOMETRIC_KEY = `${PREFIX}-biometric-v1`;
+function savedDelay() {
+  try {
+    return readLockDelay(localStorage, DELAY_KEY);
+  } catch {
+    return 300000;
+  }
+}
+function savedBiometric(binding: string) {
+  try {
+    return readBiometric(localStorage, BIOMETRIC_KEY, binding, location.origin);
+  } catch {
+    return null;
+  }
+}
 function currentAttempts() {
   try {
     return readAttempts(localStorage, ATTEMPT_KEY);
@@ -37,6 +62,13 @@ interface PinContext {
   profile: PinRecord | null;
   lock: () => void;
   change: (oldPin: string, newPin: string) => Promise<void>;
+  lockDelay: number;
+  setLockDelay: (value: number) => void;
+  biometricSupported: boolean | null;
+  biometricEnabled: boolean;
+  prepareBiometric: (pin: string) => Promise<void>;
+  enableBiometric: () => Promise<void>;
+  disableBiometric: () => void;
 }
 const Context = createContext<PinContext>(null!);
 export const usePin = () => useContext(Context);
@@ -51,18 +83,33 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [attempts, setAttempts] = useState(currentAttempts),
-    [now, setNow] = useState(Date.now());
+    [now, setNow] = useState(Date.now()),
+    [lockDelay, setDelay] = useState(savedDelay),
+    [biometricSupported, setBiometricSupported] = useState<boolean | null>(null),
+    [biometric, setBiometric] = useState<BiometricRecord | null>(() =>
+      savedBiometric(initial.record?.hash || ''),
+    );
   const active = useRef(false),
     generation = useRef(0),
     operation = useRef(false),
-    pinInput = useRef<HTMLInputElement>(null);
-  function lock() {
+    biometricRequest = useRef<AbortController | null>(null),
+    pinInput = useRef<HTMLInputElement>(null),
+    grace = useRef<SessionLock | null>(null),
+    setupGrant = useRef<{ generation: number; binding: string; expires: number } | null>(null);
+  if (!grace.current) grace.current = new SessionLock(lockDelay, () => lock());
+  function resetSession() {
+    biometricRequest.current?.abort();
+    grace.current?.reset();
+    setupGrant.current = null;
     active.current = false;
     generation.current++;
     setUnlocked(false);
     setPin('');
     setConfirm('');
     setError('');
+  }
+  function lock() {
+    resetSession();
     try {
       localStorage.setItem(LOCK_KEY, String(Date.now()) + crypto.randomUUID());
     } catch {
@@ -70,28 +117,50 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
     }
   }
   useEffect(() => {
-    const hide = () => {
-        if (document.hidden) lock();
+    let alive = true;
+    void biometricAvailable().then((value) => {
+      if (alive) setBiometricSupported(value);
+    });
+    const suspend = () => {
+        if (active.current) grace.current?.hide();
+        else {
+          generation.current++;
+          setPin('');
+          setConfirm('');
+        }
+      },
+      resume = () => grace.current?.show(),
+      visibility = () => {
+        if (document.hidden) suspend();
+        else resume();
       },
       storage = (e: StorageEvent) => {
         if (e.key === PIN_KEY || e.key === LOCK_KEY) {
           const next = readRecord();
           setProfile(next.record);
           setInvalid(next.invalid);
-          active.current = false;
-          generation.current++;
-          setUnlocked(false);
-          setPin('');
-          setConfirm('');
+          setBiometric(savedBiometric(next.record?.hash || ''));
+          resetSession();
         }
         if (e.key === ATTEMPT_KEY) setAttempts(currentAttempts());
+        if (e.key === DELAY_KEY) {
+          const value = savedDelay();
+          setDelay(value);
+          grace.current?.setDelay(value);
+        }
+        if (e.key === BIOMETRIC_KEY) setBiometric(savedBiometric(readRecord().record?.hash || ''));
       };
-    document.addEventListener('visibilitychange', hide);
-    window.addEventListener('pagehide', lock);
+    document.addEventListener('visibilitychange', visibility);
+    window.addEventListener('pagehide', suspend);
+    window.addEventListener('pageshow', resume);
     window.addEventListener('storage', storage);
     return () => {
-      document.removeEventListener('visibilitychange', hide);
-      window.removeEventListener('pagehide', lock);
+      alive = false;
+      biometricRequest.current?.abort();
+      grace.current?.reset();
+      document.removeEventListener('visibilitychange', visibility);
+      window.removeEventListener('pagehide', suspend);
+      window.removeEventListener('pageshow', resume);
       window.removeEventListener('storage', storage);
     };
   }, []);
@@ -137,6 +206,7 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
         persistAttempts({ ...emptyAttempts });
       }
       if (currentGeneration === generation.current && !document.hidden) {
+        grace.current?.reset();
         active.current = true;
         setUnlocked(true);
       }
@@ -167,13 +237,115 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
         throw Error('App đã khóa. Mở lại rồi đổi PIN.');
       localStorage.setItem(PIN_KEY, JSON.stringify(record));
       setProfile(record);
+      setBiometric(null);
+      setupGrant.current = null;
+      try {
+        localStorage.removeItem(BIOMETRIC_KEY);
+      } catch {
+        /* Old association no longer matches the PIN binding. */
+      }
     } finally {
       operation.current = false;
     }
   }
+  function setLockDelay(value: number) {
+    if (!active.current || !LOCK_DELAYS.some((delay) => delay === value))
+      throw Error('Chưa thay đổi được thời gian khóa.');
+    localStorage.setItem(DELAY_KEY, String(value));
+    setDelay(value);
+    grace.current?.setDelay(value);
+  }
+  async function prepareBiometric(pin: string) {
+    if (operation.current) throw Error('Đang xử lý, vui lòng đợi.');
+    operation.current = true;
+    const token = generation.current;
+    try {
+      await authenticate(pin);
+      if (!active.current || !profile || token !== generation.current || document.hidden)
+        throw Error('App đã khóa. Mở lại rồi thiết lập Face ID / Touch ID.');
+      setupGrant.current = {
+        generation: token,
+        binding: profile.hash,
+        expires: Date.now() + 60000,
+      };
+    } finally {
+      operation.current = false;
+    }
+  }
+  async function enableBiometric() {
+    const grant = setupGrant.current;
+    if (operation.current) throw Error('Đang xử lý, vui lòng đợi.');
+    if (
+      !biometricSupported ||
+      !active.current ||
+      !profile ||
+      !grant ||
+      grant.generation !== generation.current ||
+      grant.binding !== profile.hash ||
+      Date.now() > grant.expires ||
+      Date.now() < grant.expires - 60000
+    )
+      throw Error('Nhập lại PIN hiện tại để tiếp tục bật khóa máy.');
+    operation.current = true;
+    try {
+      const controller = new AbortController();
+      biometricRequest.current = controller;
+      const record = await enrollBiometric(profile.name, profile.hash, controller.signal);
+      if (!active.current || grant.generation !== generation.current || document.hidden)
+        throw Error('App đã khóa; chưa lưu thiết lập. Vui lòng thử lại.');
+      localStorage.setItem(BIOMETRIC_KEY, JSON.stringify(record));
+      setBiometric(record);
+    } finally {
+      operation.current = false;
+      setupGrant.current = null;
+    }
+  }
+  function disableBiometric() {
+    if (!active.current || operation.current) throw Error('Mở khóa app rồi thử lại.');
+    localStorage.removeItem(BIOMETRIC_KEY);
+    setBiometric(null);
+    setupGrant.current = null;
+  }
+  async function openWithBiometric() {
+    if (operation.current || !biometric || !profile || biometric.pinBinding !== profile.hash)
+      return;
+    operation.current = true;
+    setBusy(true);
+    setError('');
+    const token = generation.current;
+    try {
+      const controller = new AbortController();
+      biometricRequest.current = controller;
+      await unlockBiometric(biometric, controller.signal);
+      if (token !== generation.current || document.hidden) return;
+      persistAttempts({ ...emptyAttempts });
+      grace.current?.reset();
+      active.current = true;
+      setUnlocked(true);
+      setPin('');
+    } catch (error) {
+      if (token === generation.current) setError(biometricError(error));
+    } finally {
+      operation.current = false;
+      setBusy(false);
+    }
+  }
   const remaining = Math.max(0, Math.ceil((attempts.blockedUntil - now) / 1000));
   return (
-    <Context.Provider value={{ profile, lock, change }}>
+    <Context.Provider
+      value={{
+        profile,
+        lock,
+        change,
+        lockDelay,
+        setLockDelay,
+        biometricSupported,
+        biometricEnabled: !!biometric && biometric.pinBinding === profile?.hash,
+        prepareBiometric,
+        enableBiometric,
+        disableBiometric,
+      }}
+    >
       {unlocked && profile ? (
         children
       ) : (
@@ -205,6 +377,20 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
                   ? 'Nhập 4 số để mở một góc nhà mình.'
                   : 'Chỉ cần thiết lập một lần, không cần email.'}
             </p>
+            {profile &&
+              biometric &&
+              biometric.pinBinding === profile.hash &&
+              biometricSupported && (
+                <button
+                  type="button"
+                  className="button primary full biometric-unlock"
+                  disabled={busy}
+                  onClick={() => void openWithBiometric()}
+                >
+                  <Icon name="face" size={22} />
+                  {busy ? 'Đang xác nhận…' : 'Mở bằng Face ID / Touch ID'}
+                </button>
+              )}
             {!invalid && (
               <form
                 onSubmit={(e) => {
@@ -293,8 +479,10 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
               </form>
             )}
             <p className="small-note">
-              PIN riêng cho bản cài này; không gửi lên Firebase. App tự khóa khi chuyển sang ứng
-              dụng khác.
+              {lockDelay === 0
+                ? 'App khóa ngay khi rời màn hình.'
+                : `App tự khóa sau ${lockDelay < 60000 ? `${lockDelay / 1000} giây` : `${lockDelay / 60000} phút`} rời màn hình.`}{' '}
+              Bạn có thể đổi thời gian chờ trong Cài đặt. PIN riêng cho bản cài này.
             </p>
             {profile && (
               <details>
