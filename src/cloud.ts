@@ -16,7 +16,7 @@ import {
   getDocFromServer,
 } from 'firebase/firestore';
 import type { FamilyUser, ShoppingItem, Suggestion, Device } from './context';
-import type { Memorial } from './lib/memorials';
+import { validateEvent, type Memorial } from './lib/memorials';
 const e = import.meta.env;
 const app = initializeApp({
   apiKey: e.VITE_FIREBASE_API_KEY,
@@ -244,20 +244,26 @@ export async function clearDone(items: ShoppingItem[]) {
   }
 }
 export function saveMemorial(value: Omit<Memorial, 'id'>, id?: string) {
-  const { name, relation, side, lunarDay, lunarMonth, isLeapMonth, leapPolicy, note, deathYear } =
-    value;
+  validateEvent(value);
+  const fields = [
+    'name',
+    'relation',
+    'side',
+    'lunarDay',
+    'lunarMonth',
+    'isLeapMonth',
+    'leapPolicy',
+    'note',
+    'deathYear',
+    'kind',
+    'calendar',
+    'repeat',
+    'family',
+    'branch',
+    'eventYear',
+  ] as const;
   const data = Object.fromEntries(
-    Object.entries({
-      name,
-      relation,
-      side,
-      lunarDay,
-      lunarMonth,
-      isLeapMonth,
-      leapPolicy,
-      note,
-      deathYear,
-    }).filter(([, v]) => v !== undefined),
+    fields.filter((key) => value[key] !== undefined).map((key) => [key, value[key]]),
   );
   return setDoc(id ? doc(db, 'memorials', id) : doc(collection(db, 'memorials')), data);
 }

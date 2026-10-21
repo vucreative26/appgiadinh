@@ -3,7 +3,7 @@ import { CalendarArt } from '../../components/CalendarArt';
 import { useFamily } from '../../context';
 import { todayParts, solarToLunar, canChiDay, canChiYear, jd, VN } from '../../lib/lunar';
 import { catholicInfo } from '../../lib/catholic';
-import { nextMemorial } from '../../lib/memorials';
+import { nextMemorial, eventTitle, familyLabel } from '../../lib/memorials';
 import { usePrices } from '../../lib/prices';
 import { money } from '../../lib/money';
 import { Icon } from '../../components/Icon';
@@ -176,9 +176,9 @@ export default function Home() {
                   <small>TH {next!.date![1]}</small>
                 </div>
                 <div>
-                  <strong>Giỗ {value.name}</strong>
+                  <strong>{eventTitle(value)}</strong>
                   <p>
-                    {value.relation} · {value.side === 'noi' ? 'Bên nội' : 'Bên ngoại'}
+                    {value.relation} · {familyLabel(value)}
                   </p>
                 </div>
                 <span className={'badge ' + (next!.remaining <= 7 ? 'urgent' : '')}>
@@ -191,11 +191,12 @@ export default function Home() {
               <Icon name="flower" size={32} />
               <p>
                 {user
-                  ? 'Chưa có ngày giỗ trong 30 ngày tới.'
+                  ? 'Chưa có ngày yêu thương trong 30 ngày tới.'
                   : 'Những ngày quan trọng của gia đình sẽ ở đây.'}
               </p>
               <a className="text-link" href="#/giong">
-                {user ? 'Quản lý ngày giỗ' : 'Mở sổ ngày giỗ'} <Icon name="arrow" size={15} />
+                {user ? 'Quản lý ngày yêu thương' : 'Mở sổ ngày yêu thương'}{' '}
+                <Icon name="arrow" size={15} />
               </a>
             </div>
           )}

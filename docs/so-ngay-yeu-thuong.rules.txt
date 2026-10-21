@@ -1,0 +1,20 @@
+match /memorials/{id} {
+   allow read, delete: if allowed();
+   allow create, update: if allowed()
+    && request.resource.data.keys().hasOnly(['name','relation','side','lunarDay','lunarMonth','isLeapMonth','leapPolicy','deathYear','note','kind','calendar','repeat','family','branch','eventYear'])
+    && text(request.resource.data.name,100) && request.resource.data.name.size() > 0
+    && text(request.resource.data.relation,100) && request.resource.data.side in ['noi','ngoai']
+    && request.resource.data.lunarDay is int && request.resource.data.lunarDay >= 1 && request.resource.data.lunarDay <= (request.resource.data.get('calendar','lunar') == 'solar' ? 31 : 30)
+    && request.resource.data.lunarMonth is int && request.resource.data.lunarMonth >= 1 && request.resource.data.lunarMonth <= 12
+    && request.resource.data.isLeapMonth is bool
+    && (!('leapPolicy' in request.resource.data) || request.resource.data.leapPolicy in ['regular','preferLeap'])
+    && (!('deathYear' in request.resource.data) || (request.resource.data.deathYear is int && request.resource.data.deathYear >= 1 && request.resource.data.deathYear <= 2100))
+    && (!('note' in request.resource.data) || text(request.resource.data.note,2000))
+    && request.resource.data.get('kind','memorial') in ['memorial','birthday','anniversary','other']
+    && request.resource.data.get('calendar','lunar') in ['lunar','solar']
+    && request.resource.data.get('repeat','yearly') in ['yearly','monthly','once']
+    && request.resource.data.get('family','unspecified') in ['wife','husband','shared','unspecified']
+    && request.resource.data.get('branch','chung') in ['noi','ngoai','chung']
+    && (!('eventYear' in request.resource.data) || (request.resource.data.eventYear is int && request.resource.data.eventYear >= 1900 && request.resource.data.eventYear <= 2100))
+    && (request.resource.data.get('repeat','yearly') != 'once' || 'eventYear' in request.resource.data);
+  }

@@ -96,7 +96,7 @@ export function PinProvider({ children }: { children: ComponentChildren }) {
     pinInput = useRef<HTMLInputElement>(null),
     grace = useRef<SessionLock | null>(null),
     setupGrant = useRef<{ generation: number; binding: string; expires: number } | null>(null);
-  if (!grace.current) grace.current = new SessionLock(lockDelay, () => lock());
+  if (!grace.current) grace.current = new SessionLock(lockDelay, () => resetSession());
   function resetSession() {
     biometricRequest.current?.abort();
     grace.current?.reset();

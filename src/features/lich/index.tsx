@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useState, useEffect } from 'preact/hooks';
 import { PageTitle, Tabs } from '../../components/Shared';
 import { Icon } from '../../components/Icon';
 import {
@@ -12,11 +12,18 @@ import {
   solarTerm,
 } from '../../lib/lunar';
 import { catholicInfo } from '../../lib/catholic';
+import { dayAlmanac, vnTime } from '../../lib/almanac';
 import fixed from '../../data/catholic-fixed.json';
 import { useFamily } from '../../context';
-import { memorialDate } from '../../lib/memorials';
+import { eventOccurrences, eventTitle } from '../../lib/memorials';
 export default function Calendar() {
-  const today = todayParts(),
+  const [clock, setClock] = useState(() => new Date()),
+    [hour, setHour] = useState<number | null>(null);
+  useEffect(() => {
+    const timer = setInterval(() => setClock(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, []);
+  const today = todayParts(clock),
     [month, setMonth] = useState(today[1]),
     [year, setYear] = useState(today[2]),
     [selected, setSelected] = useState(today),
@@ -33,15 +40,19 @@ export default function Calendar() {
     fixedName = (fixed as Record<string, string>)[
       `${String(selected[1]).padStart(2, '0')}-${String(selected[0]).padStart(2, '0')}`
     ];
+  const time = vnTime(clock),
+    detail = dayAlmanac(selected, hour ?? time.hour);
   const memorialDays = new Map<number, string[]>();
-  for (const v of memorials)
-    for (const y of [year - 1, year]) {
-      const r = memorialDate(v, y);
-      if (r.date) {
-        const key = jd(...r.date);
-        memorialDays.set(key, [...(memorialDays.get(key) || []), v.name]);
-      }
+  for (const v of memorials) {
+    for (const r of eventOccurrences(
+      v,
+      fromJD(first - offset),
+      fromJD(first - offset + count - 1),
+    )) {
+      const key = jd(...r.date);
+      memorialDays.set(key, [...(memorialDays.get(key) || []), eventTitle(v)]);
     }
+  }
   function change(n: number) {
     const date = new Date(year, month - 1 + n, 1);
     if (date.getFullYear() < 1900 || date.getFullYear() > 2100) return;
@@ -149,7 +160,7 @@ export default function Calendar() {
                     (i % 7 === 6 ? 'sunday' : '')
                   }
                   aria-pressed={active}
-                  aria-label={`${d}/${m}/${y}, âm lịch ${l.day}/${l.month}${mark ? ', có ngày giỗ' : ''}${feast ? ', ' + feast : ''}`}
+                  aria-label={`${d}/${m}/${y}, âm lịch ${l.day}/${l.month}${mark ? ', có ngày yêu thương' : ''}${feast ? ', ' + feast : ''}`}
                   onClick={() => setSelected(date)}
                 >
                   <strong>{d}</strong>
@@ -167,7 +178,7 @@ export default function Calendar() {
           <div className="calendar-legend">
             <span>
               <i className="memorial-dot" />
-              Ngày giỗ
+              Ngày yêu thương
             </span>
             <span>
               <i className="faith-dot" />
@@ -177,7 +188,7 @@ export default function Calendar() {
           </div>
         </section>
         <aside className="card day-detail">
-          <div className="eyebrow">NGÀY ĐANG CHỌN</div>
+          <div className="eyebrow">{detail.weekday.toLocaleUpperCase('vi')}</div>
           <div className="detail-date">{selected[0]}</div>
           <p>
             Tháng {selected[1]} năm {selected[2]}
@@ -201,7 +212,73 @@ export default function Calendar() {
                 <dd>{canChiMonth(lunar.month, lunar.year)}</dd>
                 <dt>Tiết khí</dt>
                 <dd>{solarTerm(...selected)}</dd>
+                <dt>Con giáp ngày</dt>
+                <dd>{detail.animal}</dd>
+                <dt>Tháng âm</dt>
+                <dd>
+                  {detail.monthLength} ngày · {lunar.leap ? 'Tháng nhuận' : 'Tháng thường'}
+                </dd>
+                <dt>Trăng (xấp xỉ)</dt>
+                <dd>{detail.moon}</dd>
               </dl>
+              <div className="hour-lookup">
+                <label>
+                  Tra giờ theo ngày đang chọn (UTC+7)
+                  <select
+                    value={hour ?? 'now'}
+                    onChange={(e) =>
+                      setHour(
+                        e.currentTarget.value === 'now' ? null : Number(e.currentTarget.value),
+                      )
+                    }
+                  >
+                    <option value="now">Theo giờ hiện tại · {time.text}</option>
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>
+                        {String(i).padStart(2, '0')}:00
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p>
+                  <strong>Giờ {detail.hour}</strong>
+                  <span className="small-note">
+                    {detail.hourRange} · Quy ước đổi ngày lúc 00:00
+                  </span>
+                </p>
+              </div>
+              <section className="auspicious-hours">
+                <h3>Giờ hoàng đạo</h3>
+                <div>
+                  {detail.goodHours.map((h) => (
+                    <span className="hour-chip" key={h.branch}>
+                      <strong>{h.branch}</strong>
+                      <small>{h.range}</small>
+                    </span>
+                  ))}
+                </div>
+                <p className="small-note">
+                  Bảng giờ theo chi ngày trong lịch truyền thống; giờ Tý gồm 00:00–00:59 và
+                  23:00–23:59 của ngày đang xem.
+                </p>
+              </section>
+              {detail.observance && <p className="notice">{detail.observance}</p>}
+              <details className="almanac-conventions">
+                <summary>Cách đọc thông tin ngày</summary>
+                <p className="small-note">
+                  Lịch âm, Can Chi và tiết khí tính theo UTC+7. Tháng Can Chi ở đây theo tháng âm;
+                  phần lập quẻ có quy ước tháng tiết khí riêng. Pha trăng ước tính theo ngày âm. Giờ
+                  hoàng đạo là thông tin văn hóa dân gian, không phải xác suất tốt/xấu của một việc.
+                </p>
+                <a
+                  className="text-link"
+                  href="https://github.com/de-men/amlich"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Tham khảo lịch âm & giờ hoàng đạo <Icon name="arrow" size={14} />
+                </a>
+              </details>
             </>
           ) : (
             <>
@@ -236,7 +313,7 @@ export default function Calendar() {
           {memorialDays.get(jd(...selected))?.map((name) => (
             <a className="memorial-notice" href="#/giong">
               <Icon name="flower" size={18} />
-              Giỗ {name}
+              {name}
             </a>
           ))}
         </aside>

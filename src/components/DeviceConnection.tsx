@@ -65,8 +65,8 @@ export function DeviceConnection() {
           </div>
           {!device.approved && (
             <p className="notice">
-              Chỉ mã máy đã được thêm vào Firestore Rules mới truy cập được Đi chợ và Ngày giỗ. Đặt
-              PIN không tự cấp quyền.
+              Chỉ mã máy đã được thêm vào Firestore Rules mới truy cập được Đi chợ và Sổ ngày yêu
+              thương. Đặt PIN không tự cấp quyền.
             </p>
           )}
         </>

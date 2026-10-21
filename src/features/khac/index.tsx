@@ -53,7 +53,7 @@ export default function More() {
       </div>
       <div className="notice row">
         <Icon name="flower" />
-        <span>Sổ ngày giỗ nằm trong menu gia đình ở góc trên bên phải.</span>
+        <span>Sổ ngày yêu thương nằm trong menu gia đình ở góc trên bên phải.</span>
         <a href="#/giong" className="text-link">
           Mở sổ <Icon name="arrow" size={16} />
         </a>

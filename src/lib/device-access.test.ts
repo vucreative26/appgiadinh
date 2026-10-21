@@ -53,7 +53,15 @@ vi.mock('firebase/firestore', () => ({
   deleteDoc: vi.fn(),
   updateDoc: vi.fn(),
 }));
-import { start, checkDeviceAccess, registerDevice, authError, accessError } from '../cloud';
+import {
+  start,
+  checkDeviceAccess,
+  registerDevice,
+  authError,
+  accessError,
+  saveMemorial,
+} from '../cloud';
+import { setDoc } from 'firebase/firestore';
 describe('Quyền thiết bị và vòng đời kết nối', () => {
   let stop: (() => void) | undefined, storage: Map<string, string>, online: { onLine: boolean };
   function setup() {
@@ -200,4 +208,26 @@ describe('Quyền thiết bị và vòng đời kết nối', () => {
     expect(accessError({ code: 'not-found' })).toContain('(default)');
     expect(accessError(Error('timeout'))).toContain('timeout');
   });
+});
+
+it('ghi đủ trường ngày yêu thương vào cùng ID; chặn ngày sai trước khi ghi', async () => {
+  vi.mocked(setDoc).mockClear();
+  const data = {
+    name: 'Sinh nhật mẹ',
+    relation: 'Mẹ',
+    side: 'ngoai' as const,
+    lunarDay: 29,
+    lunarMonth: 2,
+    isLeapMonth: false,
+    kind: 'birthday' as const,
+    calendar: 'solar' as const,
+    repeat: 'yearly' as const,
+    family: 'wife' as const,
+    branch: 'ngoai' as const,
+    note: 'Nhớ gọi điện',
+  };
+  await saveMemorial(data, 'existing-id');
+  expect(setDoc).toHaveBeenCalledWith('memorials/existing-id', data);
+  expect(() => saveMemorial({ ...data, lunarDay: 31 }, 'existing-id')).toThrow();
+  expect(setDoc).toHaveBeenCalledTimes(1);
 });

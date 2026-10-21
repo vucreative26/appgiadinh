@@ -151,7 +151,7 @@ function App() {
             <small>GÓC GIA ĐÌNH</small>
             <a href="#/giong">
               <Icon name="flower" />
-              Ngày giỗ <Icon name="chevron" size={16} />
+              Ngày yêu thương <Icon name="chevron" size={16} />
             </a>
             <a href="#/caidat">
               <Icon name="settings" />

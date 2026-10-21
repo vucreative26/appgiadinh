@@ -14,7 +14,7 @@ npm run build
 npm run preview
 ```
 
-Lần mở đầu tạo tên hiển thị và PIN 4 số ngay trên thiết bị. Những lần sau nhập PIN để mở app. Chưa có Firebase vẫn dùng được Dashboard, lịch, Kinh Dịch, Tử Vi, Giá và Share Bill sau khi mở khóa. Đi chợ / Ngày giỗ chỉ mở khi bản cài được cấp quyền, không tạo dữ liệu giả.
+Lần mở đầu tạo tên hiển thị và PIN 4 số ngay trên thiết bị. Những lần sau nhập PIN để mở app. Chưa có Firebase vẫn dùng được Dashboard, lịch, Kinh Dịch, Tử Vi, Giá và Share Bill sau khi mở khóa. Đi chợ / Sổ ngày yêu thương chỉ mở khi bản cài được cấp quyền, không tạo dữ liệu giả.
 
 ## Bố cục
 
@@ -22,7 +22,7 @@ Lần mở đầu tạo tên hiển thị và PIN 4 số ngay trên thiết bị
 - Lịch có hai tab: Âm lịch và Công giáo; ngày dương luôn hiển thị để đối chiếu.
 - Kinh Dịch có nhập sáu hào, ngày giờ, hai số hoặc sê-ri tiền, kèm copy đầy đủ ngữ cảnh để hỏi AI bên ngoài.
 - Tử Vi có 12 cung, Mệnh/Thân/Cục, chính tinh/phụ tinh, tứ hóa, ghi chú ngắn và copy dữ liệu lá số.
-- Khác có Đi chợ và Share Bill; Ngày giỗ nằm trong menu góc trên phải.
+- Khác có Đi chợ và Share Bill; Sổ ngày yêu thương nằm trong menu góc trên phải.
 - Sáng/tối theo hệ thống khi mở lần đầu; nút mặt trăng/mặt trời ghi nhớ lựa chọn trên thiết bị.
 
 ## Kết nối Firebase không dùng email
@@ -115,3 +115,11 @@ Firebase web config đã được nhập vào `.env` cục bộ. Chưa nghiệm 
 Cài đặt → Face ID / Touch ID → nhập PIN hiện tại → Bật → Tiếp tục và xác nhận trên máy. Dùng WebAuthn với khóa nền tảng, xác minh người dùng bắt buộc; app kiểm tra challenge, origin, RP ID và chữ ký ES256 bằng khóa công khai đã lưu. Hệ điều hành chọn Face ID, Touch ID hoặc mã khóa máy. App không nhận khuôn mặt/vân tay. Khi app khóa, chạm nút mở bằng thiết bị hoặc nhập PIN. Đổi PIN làm mất hiệu lực liên kết cũ; bật lại nếu muốn.
 
 Cần HTTPS và trình duyệt có WebAuthn (Safari cập nhật trên iPhone/iPad); thiết lập riêng trong bản cài đang dùng. Việc tắt trong app chỉ xóa liên kết cục bộ, không xóa passkey khỏi trình quản lý mật khẩu của hệ điều hành. Đây là khóa giao diện cục bộ như PIN, không thay Firebase Auth/Rules hoặc mã hóa cache. Chưa kiểm thử Face ID trên iPhone thật; bộ kiểm thử dùng chữ ký P-256 thật để kiểm tra xác minh và các phản hồi sai.
+
+### Sổ ngày yêu thương và lịch âm chi tiết
+
+Sổ ngày giỗ được mở rộng thành Sổ ngày yêu thương: sinh nhật, kỷ niệm, ngày giỗ, ngày tùy chọn; lọc theo bên vợ/chồng và nhánh nội/ngoại; hỗ trợ ngày âm/dương, nhắc trong app hằng năm/hằng tháng/một lần. Dữ liệu cũ giữ ID và được đọc là giỗ âm hằng năm, chưa phân bên vợ/chồng. Giữ route #/giong và collection memorials để tương thích.
+
+**Trước khi ghi trường mới, cập nhật riêng khối Rules memorials trong Firebase Console** theo [hướng dẫn](docs/SO-NGAY-YEU-THUONG.md) và [đoạn Rules](docs/so-ngay-yeu-thuong.rules.txt), giữ nguyên allowed() và UID đang dùng. Chưa tự triển khai Rules mới lên server. Thêm/chỉnh biểu mẫu chỉ báo thành công khi server xác nhận; lỗi quyền giữ nội dung để thử lại.
+
+Lịch hiển thị giờ Can Chi UTC+7, sáu giờ hoàng đạo theo bảng truyền thống, con giáp ngày, tháng đủ/thiếu, pha trăng xấp xỉ và một số dịp âm lịch. Không tự tạo điểm phần trăm tốt/xấu, màu hoặc số may mắn từ ngày âm. Bộ kiểm thử bao gồm sinh nhật 29/2, ngày 31 hằng tháng, tháng âm nhuận, dữ liệu cũ và tuần lịch giáp tháng.

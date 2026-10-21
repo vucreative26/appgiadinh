@@ -731,3 +731,138 @@ main {
     transition: none;
   }
 }
+.love-banner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 26px;
+  margin: 20px 0;
+  background: linear-gradient(120deg, var(--surface), #f2eefe);
+  border-radius: 26px;
+  border: 1px solid var(--border);
+}
+.love-banner h2 {
+  margin: 0 0 6px;
+}
+.love-banner p {
+  margin: 0;
+  color: var(--muted);
+}
+.love-banner > .button {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.love-filters {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1.1fr 1fr;
+  gap: 14px;
+  margin: 24px 0;
+}
+.love-editor {
+  margin-bottom: 24px;
+}
+.love-event dl > div {
+  display: contents;
+}
+.event-note {
+  white-space: pre-wrap;
+}
+.love-event .detail-highlight {
+  line-height: 1.6;
+}
+.event-birthday {
+  background: #faedf5;
+  color: #9f3266;
+}
+.event-anniversary {
+  background: #ede9ff;
+  color: #6243aa;
+}
+.event-memorial {
+  background: #f2eee6;
+  color: #806a47;
+}
+.event-other {
+  background: #e5f4f6;
+  color: #216d78;
+}
+.hour-lookup {
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+}
+.hour-lookup p {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.auspicious-hours h3 {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+.auspicious-hours > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.hour-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 4px;
+  font-size: 14px;
+}
+.hour-chip small {
+  font-size: 10px;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.almanac-conventions {
+  margin-top: 18px;
+}
+.day-detail dl {
+  font-size: 14px;
+}
+.day-detail dl dd {
+  overflow-wrap: anywhere;
+}
+[data-theme='dark'] .love-banner {
+  background: linear-gradient(120deg, var(--surface), #24273c);
+}
+@media (max-width: 700px) {
+  .love-banner {
+    flex-wrap: wrap;
+    padding: 20px;
+    gap: 12px;
+  }
+  .love-banner > div {
+    flex: 1;
+    min-width: 160px;
+  }
+  .love-banner > .button {
+    margin-left: 0;
+    width: 100%;
+  }
+  .love-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .love-filters > label:first-child {
+    grid-column: 1/-1;
+  }
+  .love-filters label {
+    min-width: 0;
+  }
+  .love-filters select {
+    width: 100%;
+  }
+  .hour-chip small {
+    font-size: 11px;
+  }
+}
+
+.calendar-layout {
+  align-items: start;
+}
