@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { PageTitle } from '../../components/Shared';
 import { Icon } from '../../components/Icon';
 import { usePrices, type Quote } from '../../lib/prices';
@@ -31,9 +31,13 @@ function Sparkline({ values }: { values: (number | null)[] }) {
   );
 }
 export default function Prices() {
-  const { data, loading, error, refresh } = usePrices(),
+  const { data, loading, error, refresh, goldCheckedAt, goldVerified } = usePrices(),
     [holdings, setHoldings] = useLocal('nha-gold', { chi: '', cost: '', brand: 'sjc' }),
     [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
   const quote = holdings.brand === 'pnj' ? data?.gold.pnj : data?.gold.sjc,
     quantity = Number(holdings.chi),
     cost = Number(holdings.cost),
@@ -41,27 +45,38 @@ export default function Prices() {
     profit = value !== null && cost > 0 ? value - quantity * cost : null;
   const stale = (q: Quote | null | undefined) =>
     !q?.updatedAt || now - new Date(q.updatedAt).getTime() > 6 * 3600000;
-  const showTime = (q: Quote | null | undefined) =>
-    q?.updatedAt
+  const showTime = (value: string | undefined | null) =>
+    value
       ? new Intl.DateTimeFormat('vi-VN', {
           timeZone: VN,
           hour: '2-digit',
           minute: '2-digit',
           day: '2-digit',
           month: '2-digit',
-        }).format(new Date(q.updatedAt))
+        }).format(new Date(value))
       : 'Chưa có dữ liệu';
   const cards = [
     {
-      label: 'Vàng miếng SJC',
+      label: data?.gold.sjc?.source?.startsWith('SJC')
+        ? 'Vàng miếng SJC · nguồn SJC'
+        : 'Vàng miếng SJC tại PNJ',
+      verified: goldVerified.sjc,
       q: data?.gold.sjc,
       unit: 'đồng / lượng',
       icon: 'sand',
       values: data?.history.map((p) => p.sjc) || [],
     },
-    { label: 'Vàng PNJ', q: data?.gold.pnj, unit: 'đồng / lượng', icon: 'peach', values: [] },
+    {
+      label: 'PNJ Phượng Hoàng',
+      verified: goldVerified.pnj,
+      q: data?.gold.pnj,
+      unit: 'đồng / lượng',
+      icon: 'peach',
+      values: [],
+    },
     {
       label: 'Tỷ giá USD / VND',
+      verified: false,
       q: data?.usd,
       unit: 'đồng / 1 USD',
       icon: 'mint',
@@ -93,6 +108,13 @@ export default function Prices() {
           {error}
         </p>
       )}
+      <p className="notice price-refresh-note" role="status">
+        {goldCheckedAt
+          ? `Đã đối chiếu nguồn PNJ lúc ${showTime(goldCheckedAt)} (giờ Việt Nam). `
+          : 'Chưa đối chiếu được trực tiếp nguồn PNJ trong lần tải này. '}
+        Giờ niêm yết của từng giá nằm trên thẻ. USD lấy từ bản giá lưu; làm mới không đồng nghĩa giá
+        đã thay đổi.
+      </p>
       <div className="price-grid">
         {cards.map((c) => {
           const valid = c.values.filter((v): v is number => v !== null),
@@ -104,7 +126,13 @@ export default function Prices() {
                   <Icon name="chart" />
                 </span>
                 <span className={'badge ' + (stale(c.q) ? 'urgent' : '')}>
-                  {!c.q ? 'Chờ nguồn' : stale(c.q) ? 'Dữ liệu cũ' : 'Đã cập nhật'}
+                  {!c.q
+                    ? 'Chờ nguồn'
+                    : stale(c.q)
+                      ? 'Giá đã cũ'
+                      : c.verified
+                        ? 'Đã đối chiếu nguồn'
+                        : 'Bản giá lưu'}
                 </span>
               </div>
               <h2>{c.label}</h2>
@@ -129,7 +157,15 @@ export default function Prices() {
               <div className="price-source">
                 {c.q?.source || 'Chưa có nguồn giá xác thực'}
                 <br />
-                Cập nhật: {showTime(c.q)}
+                Giờ nguồn: {showTime(c.q?.updatedAt)}
+                {c.q?.sourceUrl?.startsWith('https://') && (
+                  <>
+                    <br />
+                    <a className="text-link" href={c.q.sourceUrl} target="_blank" rel="noreferrer">
+                      Mở nguồn báo giá <Icon name="arrow" size={14} />
+                    </a>
+                  </>
+                )}
               </div>
             </section>
           );
@@ -193,8 +229,10 @@ export default function Prices() {
         </p>
       </section>
       <p className="small-note">
-        Nguồn được kiểm tra theo từng lần lấy giá. Giá cũ hơn 6 giờ được đánh dấu; app không tự tạo
-        giá khi nguồn lỗi.
+        Giá vàng miếng SJC và PNJ Phượng Hoàng do PNJ TP.HCM niêm yết; có thể chênh với bảng giá tại
+        SJC.com.vn hoặc sản phẩm khác. Giá vàng được hỏi lại nguồn khi mở trang, bấm Làm mới và mỗi
+        5 phút khi app đang mở. Nếu nguồn lỗi, giữ giá cũ và giờ nguồn cũ. Giá quá 6 giờ được đánh
+        dấu.
       </p>
     </>
   );

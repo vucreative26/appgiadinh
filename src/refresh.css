@@ -1,4 +1,8 @@
 /* A softer, blue-toned surface system shared by every feature. */
+.price-refresh-note {
+  margin-bottom: 20px;
+  font-size: 12px;
+}
 :root {
   color: #172d47;
   background: #f2f5fa;

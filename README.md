@@ -69,6 +69,8 @@ npm run prices
 
 Nguồn đã kiểm tra thành công trong lần phát triển 20/10/2026:
 
+Từ bản sửa 21/10/2026, trình duyệt gọi trực tiếp PNJ khi mở Dashboard/trang Giá, bấm **Làm mới**, khi có mạng lại và mỗi 5 phút trong lúc màn hình đó còn mở. API PNJ đã được kiểm tra CORS từ trình duyệt. File `prices.json` trên Pages là dữ liệu dự phòng và nguồn USD/lịch sử, không còn là cách duy nhất cập nhật vàng. Nếu nguồn trực tiếp lỗi hoặc thiếu một sản phẩm, giữ riêng giá và giờ nguồn của sản phẩm đó; nhãn phân biệt **Đã đối chiếu nguồn**, **Bản giá lưu**, **Giá đã cũ**. Giờ đối chiếu là giờ gọi nguồn, còn giờ nguồn là giờ PNJ thực sự niêm yết. Không ghi đè giá mới hơn bằng file hoặc phản hồi cũ hơn.
+
 - **PNJ chính thức**: `https://edge-api.pnj.io/ecom-frontend/v1/get-gold-price?zone=00`; dự phòng cùng dữ liệu qua `https://edge-cf-api.pnj.io`. Vùng TP.HCM. SJC lấy dòng `SJC`; PNJ lấy dòng `PNJ` (Phượng Hoàng), không đánh đồng với nhẫn trơn `N24K`.
 - PNJ trả nghìn đồng/chỉ; nhân **10.000** để chuẩn hóa đồng/lượng. Luôn giữ rõ loại sản phẩm và nguồn.
 - **Vietcombank chính thức**: `https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx`, lấy USD mua tiền mặt và bán, không giả hai giá từ một tỷ giá trung tâm. Nguồn yêu cầu không gọi thường hơn 5 phút; workflow chỉ gọi mỗi hai giờ.

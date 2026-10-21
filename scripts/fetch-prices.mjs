@@ -1,40 +1,8 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 const VCB = 'https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx';
-const PNJ = ['https://edge-api.pnj.io', 'https://edge-cf-api.pnj.io'];
-export function validQuote(q) {
-  return (
-    q &&
-    Number.isFinite(q.buy) &&
-    Number.isFinite(q.sell) &&
-    q.buy > 0 &&
-    q.sell >= q.buy &&
-    Number.isFinite(Date.parse(q.updatedAt))
-  );
-}
-export function parseVNDate(value) {
-  const m = value?.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
-  if (!m) throw Error('Thời gian nguồn PNJ không đúng định dạng.');
-  return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:${m[6]}+07:00`).toISOString();
-}
-export function parsePNJ(payload, host) {
-  if (!Array.isArray(payload.data)) throw Error('PNJ không có bảng giá.');
-  const updatedAt = parseVNDate(payload.updateDate);
-  const get = (code) => {
-    const row = payload.data.find((p) => p.masp === code);
-    const q = {
-      buy: Number(row?.giamua) * 10000,
-      sell: Number(row?.giaban) * 10000,
-      source: `PNJ · TP.HCM · ${code === 'SJC' ? 'SJC 999.9' : 'PNJ Phượng Hoàng'}`,
-      sourceUrl: `${host}/ecom-frontend/v1/get-gold-price?zone=00`,
-      updatedAt,
-    };
-    if (!validQuote(q) || q.buy < 1e6 || q.sell > 1e10)
-      throw Error(`PNJ ${code}: giá hoặc đơn vị bất thường.`);
-    return q;
-  };
-  return { sjc: get('SJC'), pnj: get('PNJ') };
-}
+import { parsePNJ, parseVNDate, validQuote, PNJ_HOSTS as PNJ } from '../src/lib/gold-source.mjs';
+export { parsePNJ, parseVNDate, validQuote };
 export function parseVCB(xml) {
   const row = xml.match(/<Exrate\b[^>]*CurrencyCode="USD"[^>]*\/>/i)?.[0];
   if (!row) throw Error('Không có USD trong XML Vietcombank.');

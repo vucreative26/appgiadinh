@@ -1,42 +1,62 @@
-import { useEffect, useState } from 'preact/hooks';
-export interface Quote {
-  buy: number;
-  sell: number;
-  source?: string;
-  updatedAt?: string;
-}
-export interface Prices {
-  updatedAt: string | null;
-  usd: Quote | null;
-  gold: { sjc: Quote | null; pnj: Quote | null; world: number | null; source: string };
-  history: { t: string; usd: number | null; sjc: number | null }[];
-  errors?: string[];
-}
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { loadPrices, type Prices, type PriceRefresh } from './price-feed';
+export type { Quote, Prices } from './price-feed';
 let cached: Prices | null = null;
+let lastRefresh: PriceRefresh | null = null;
+let inFlight: Promise<PriceRefresh> | null = null;
+function sharedRefresh() {
+  if (!inFlight)
+    inFlight = loadPrices(cached, import.meta.env.BASE_URL + 'prices.json')
+      .then((result) => {
+        cached = result.data;
+        lastRefresh = result;
+        return result;
+      })
+      .finally(() => {
+        inFlight = null;
+      });
+  return inFlight;
+}
 export function usePrices() {
   const [data, setData] = useState<Prices | null>(cached),
     [loading, setLoading] = useState(!cached),
     [error, setError] = useState('');
+  const [goldCheckedAt, setGoldCheckedAt] = useState(lastRefresh?.goldCheckedAt || null);
+  const [goldVerified, setGoldVerified] = useState(
+    lastRefresh?.goldVerified || { sjc: false, pnj: false },
+  );
+  const mounted = useRef(true);
   async function refresh() {
     setLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.BASE_URL}prices.json`, { cache: 'no-store' });
-      if (!response.ok) throw Error();
-      const p = await response.json();
-      if (!p.gold || !Array.isArray(p.history)) throw Error();
-      cached = p;
-      setData(p);
-      setError('');
-    } catch {
-      setError('Chưa lấy được bảng giá. Hãy kiểm tra mạng hoặc nguồn cập nhật.');
+      const result = await sharedRefresh();
+      if (!mounted.current) return;
+      setData(result.data);
+      setGoldCheckedAt(result.goldCheckedAt);
+      setGoldVerified(result.goldVerified);
+      setError(result.warning);
+    } catch (error) {
+      if (!mounted.current) return;
+      setGoldCheckedAt(null);
+      setGoldVerified({ sjc: false, pnj: false });
+      setError(error instanceof Error ? error.message : 'Chưa lấy được bảng giá.');
     } finally {
-      setLoading(false);
+      if (mounted.current) setLoading(false);
     }
   }
   useEffect(() => {
+    mounted.current = true;
     void refresh();
     const timer = setInterval(() => void refresh(), 5 * 60 * 1000);
-    return () => clearInterval(timer);
+    const online = () => {
+      void refresh();
+    };
+    window.addEventListener('online', online);
+    return () => {
+      mounted.current = false;
+      clearInterval(timer);
+      window.removeEventListener('online', online);
+    };
   }, []);
-  return { data, loading, error, refresh };
+  return { data, loading, error, refresh, goldCheckedAt, goldVerified };
 }
